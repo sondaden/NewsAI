@@ -1,124 +1,216 @@
 package com.example.myapplication.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.example.myapplication.data.model.NewsArticle
-import com.example.myapplication.ui.components.AppScaffold
+import com.example.myapplication.data.model.NewsCategory
+import com.example.myapplication.repository.NewsResult
 import com.example.myapplication.ui.components.BottomNavigationBar
 import com.example.myapplication.ui.components.ReusableTabBar
 import com.example.myapplication.ui.components.TopBar
-import com.example.myapplication.viewmodel.NewsUiState
+import com.example.myapplication.ui.components.NewsArticleItem
 import com.example.myapplication.viewmodel.NewsViewModel
+import com.example.myapplication.viewmodel.UserViewModel
+import kotlinx.coroutines.launch
 
 @Composable
-fun HomeScreen(navController: NavController, viewModel: NewsViewModel) {
-    AppScaffold(
-        topBar = {
-            TopBar(
-                titleContent = { Text("News AI", style = MaterialTheme.typography.titleLarge) },
-                actions = {
-                    IconButton(onClick = { /* TODO: Tìm kiếm */ }) {
-                        Icon(Icons.Default.Search, contentDescription = "Tìm kiếm")
+fun HomeScreen(
+    navController: NavController,
+    newsViewModel: NewsViewModel,
+    userViewModel: UserViewModel
+) {
+    var selectedItem by remember { mutableStateOf("Trang chủ") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        TopBar(
+            titleContent = {
+                Text(
+                    text = "News AI",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            },
+            actions = {
+                Row {
+                    IconButton(onClick = { navController.navigate("search") }) {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = "Tìm kiếm",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    IconButton(onClick = { userViewModel.toggleDarkMode() }) {
+                        Icon(
+                            Icons.Default.Menu,
+                            contentDescription = "Menu",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
                 }
-            )
-        },
-        bottomBar = {
-            BottomNavigationBar(
-                selectedItem = "Trang chủ",
-                onItemSelected = { route -> navController.navigate(route.lowercase()) }
-            )
+            }
+        )
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            val homeTabs = NewsCategory.getAllDisplayNames()
+            ReusableTabBar(tabTitles = homeTabs) { page ->
+                val selectedCategory = NewsCategory.fromDisplayName(homeTabs[page])
+                NewsListScreen(
+                    navController = navController,
+                    viewModel = newsViewModel,
+                    userViewModel = userViewModel,
+                    category = selectedCategory,
+                    displayCategory = selectedCategory?.displayName
+                )
+            }
         }
-    ) {
-        val tabs = listOf("Mới nhất", "Công nghệ", "Khoa học", "Thể thao", "Giải trí", "Sức khỏe")
-        ReusableTabBar(tabTitles = tabs) { page ->
-            NewsListScreen(navController, viewModel, tabs[page])
-        }
+
+        BottomNavigationBar(
+            selectedItem = selectedItem,
+            onItemSelected = { item ->
+                selectedItem = item
+                navController.navigate(item.lowercase()) {
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            }
+        )
     }
 }
 
 @Composable
-fun NewsListScreen(navController: NavController, viewModel: NewsViewModel, category: String) {
-    val newsState by viewModel.newsState.collectAsState()
-    val lazyListState = rememberLazyListState()
-    var isLoadingMore by remember { mutableStateOf(false) }
+fun NewsListScreen(
+    navController: NavController,
+    viewModel: NewsViewModel,
+    userViewModel: UserViewModel,
+    category: NewsCategory? = null,
+    displayCategory: String? = null
+) {
+    val newsState by viewModel.getNewsState(category).collectAsState()
+    val isFetchingMore by viewModel.getFetchingMoreState(category).collectAsState()
+
+    val listState = rememberLazyListState()
+    val isAtBottom by remember {
+        derivedStateOf {
+            val layout = listState.layoutInfo
+            val visibleItems = layout.visibleItemsInfo
+            visibleItems.isNotEmpty() &&
+                    visibleItems.last().index >= layout.totalItemsCount - 1
+        }
+    }
+
+    LaunchedEffect(isAtBottom) {
+        if (isAtBottom && newsState is NewsResult.Success && !isFetchingMore) {
+            viewModel.fetchMoreNewsForCategory(category)
+        }
+    }
 
     LaunchedEffect(category) {
-        viewModel.fetchNews(category)
+        if (category != null) {
+            viewModel.fetchNewsByCategory(category)
+        }
     }
 
-    LazyColumn(state = lazyListState, modifier = Modifier.fillMaxSize()) {
-        when (val state = newsState) {
-            is NewsUiState.Initial, is NewsUiState.Loading -> {
-                item {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                }
+    when (val state = newsState) {
+        is NewsResult.Loading -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
             }
-            is NewsUiState.Success -> {
-                items(state.articles) { article ->
-                    NewsArticleItem(article) { navController.navigate("detail/${article.id}") }
-                }
-                item {
-                    if (state.isLoadingMore) {
-                        Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                    } else if (state.articles.isNotEmpty()) {
-                        LaunchedEffect(Unit) {
-                            isLoadingMore = true
-                            viewModel.fetchNews(category, loadMore = true)
-                            isLoadingMore = false
+        }
+        is NewsResult.Success -> {
+            if (state.articles.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = if (category == NewsCategory.FOR_YOU)
+                                "Không có bài viết đề xuất"
+                            else "Không có tin tức để hiển thị",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = { viewModel.reloadNews() }) {
+                            Text("Tải lại")
                         }
                     }
                 }
-            }
-            is NewsUiState.Error -> {
-                item {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(state.message, style = MaterialTheme.typography.bodyLarge)
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    items(state.articles) { article ->
+                        NewsArticleItem(
+                            article = article,
+                            onClick = { navController.navigate("detail/${article.id}") },
+                            userViewModel = userViewModel
+                        )
+                        Divider(
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+                        )
+                    }
+                    if (isFetchingMore) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        }
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-fun NewsArticleItem(article: NewsArticle, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = article.title,
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 2
-            )
-            Text(
-                text = "${article.source} • ${article.publishedAt}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        is NewsResult.Error -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = state.message,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    state.code?.let {
+                        Text(
+                            text = "Mã lỗi: HTTP $it",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Button(onClick = { viewModel.reloadNews() }) {
+                        Text("Tải lại")
+                    }
+                }
+            }
         }
     }
 }

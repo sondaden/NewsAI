@@ -66,6 +66,6 @@ val Typography = Typography(
     labelMedium = TextStyle(
         fontFamily = Roboto,
         fontWeight = FontWeight.Bold,
-        fontSize = 14.sp
+        fontSize = 16.sp
     )
 )

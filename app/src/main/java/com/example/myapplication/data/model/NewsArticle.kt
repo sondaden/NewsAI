@@ -2,22 +2,28 @@ package com.example.myapplication.data.model
 
 import com.google.gson.annotations.SerializedName
 
+/**
+ * Model đại diện cho một bài báo tin tức từ API.
+ */
 data class NewsArticle(
-    @SerializedName("article_id") val id: String, // ID bài viết
-    @SerializedName("title") val title: String, // Tiêu đề bài viết
-    @SerializedName("content") val content: String?, // Nội dung bài viết
-    @SerializedName("source_id") val source: String, // Nguồn bài viết
-    @SerializedName("creator") val author: List<String>?, // Tác giả bài viết
-    @SerializedName("pubDate") val publishedAt: String, // Ngày xuất bản
-    val publishedAtTimestamp: Long? = null, // Thời gian xuất bản dưới dạng timestamp
-    @SerializedName("image_url") val imageUrl: String?, // URL hình ảnh
-    @SerializedName("category") val category: List<String>, // Danh mục bài viết
-    @SerializedName("link") val articleUrl: String? = null, // URL bài viết
-    @SerializedName("keywords") val keywords: List<String>? = null, // Từ khóa bài viết
-    @SerializedName("language") val language: String? = null, // Ngôn ngữ bài viết
-
-    val aiGeneratedSummary: String? = null, // Tóm tắt bài viết do AI tạo
-    val sentiment: String? = null, // Tình cảm bài viết
-    val relevanceScore: Float? = null, // Điểm liên quan bài viết
-    val reliabilityScore: Float? = null // Điểm độ tin cậy bài viết
-)
+    @SerializedName("id") val id: String,
+    @SerializedName("title") val title: String,
+    @SerializedName(value = "text", alternate = ["content"]) val content: String?,
+    @SerializedName(value = "source_country", alternate = ["source", "publisher"]) val source: String?,
+    @SerializedName(value = "author", alternate = ["creator"]) val author: String?,
+    @SerializedName(value = "publish_date", alternate = ["pubDate", "published_at", "date"]) val publishedAt: String?,
+    @SerializedName(value = "image", alternate = ["image_url"]) val imageUrl: String?,
+    @SerializedName(value = "category", alternate = ["categories"]) val category: List<String>?,
+    @SerializedName(value = "url", alternate = ["link"]) val articleUrl: String?,
+    @SerializedName("keywords") val keywords: List<String>?,
+    @SerializedName("language") val language: String?,
+    @SerializedName("summary") val aiGeneratedSummary: String?,
+    val reliabilityScore: Float? = null
+) {
+    override fun toString(): String {
+        return "NewsArticle(id=$id, title=$title, content=$content, source=$source, author=$author, " +
+                "publishedAt=$publishedAt, imageUrl=$imageUrl, category=$category, articleUrl=$articleUrl, " +
+                "keywords=$keywords, language=$language, aiGeneratedSummary=$aiGeneratedSummary, " +
+                "reliabilityScore=$reliabilityScore)"
+    }
+}

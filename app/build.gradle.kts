@@ -1,10 +1,14 @@
+import org.gradle.kotlin.dsl.annotationProcessor
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.android.libraries.mapsplatform.secrets.gradle.plugin)
     id("com.google.gms.google-services") version "4.4.2"
-    id("com.google.devtools.ksp")
+    id("com.google.devtools.ksp") version "2.0.21-1.0.27"
 }
 
 android {
@@ -13,12 +17,25 @@ android {
 
     defaultConfig {
         applicationId = "com.example.myapplication"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Đọc geminiApiKey từ local.properties và thêm vào BuildConfig
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (!localPropertiesFile.exists()) {
+            throw GradleException("File local.properties not found in project root")
+        }
+
+        val localProperties = Properties().apply {
+            load(FileInputStream(localPropertiesFile))
+        }
+        val geminiApiKey = localProperties.getProperty("geminiApiKey")
+            ?: throw GradleException("geminiApiKey not found in local.properties")
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
     }
 
     buildTypes {
@@ -44,7 +61,6 @@ android {
 }
 
 dependencies {
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -56,7 +72,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose.v262)
     implementation(libs.logging.interceptor)
-
+    implementation(libs.datastore.preferences)
 
     // Jetpack Compose BOM (Bill of Materials)
     implementation(platform(libs.androidx.compose.bom))
@@ -69,7 +85,7 @@ dependencies {
     // Navigation for Jetpack Compose
     implementation(libs.androidx.navigation.compose)
 
-    // Generative AI API (nếu cần sử dụng AI)
+    // Generative AI API
     implementation(libs.generativeai)
     implementation(libs.firebase.common.ktx)
     implementation(libs.firebase.auth.ktx)
@@ -77,6 +93,9 @@ dependencies {
 
     // Unit test
     testImplementation(libs.junit)
+
+    // Google Sign-In
+    implementation("com.google.android.gms:play-services-auth:21.3.0")
 
     // Android test
     androidTestImplementation(libs.androidx.junit)
@@ -91,9 +110,7 @@ dependencies {
     // Import the Firebase BoM
     implementation(platform(libs.firebase.bom))
 
-
-    // TODO: Add the dependencies for Firebase products you want to use
-    // When using the BoM, don't specify versions in Firebase dependencies
+    // Firebase dependencies
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.firestore.ktx)
 
